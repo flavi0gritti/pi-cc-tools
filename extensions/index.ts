@@ -3497,12 +3497,12 @@ function patchUserMessageRender(): void {
 		const padded = typeof this.rebuild === "function" && "outputPad" in this;
 		const lines = originalRender.call(this, padded ? safeWidth : Math.max(1, safeWidth - 2));
 		if (!Array.isArray(lines) || lines.length === 0) return lines;
-		// Drop the top and bottom padding rows: one compact band.
+		// Strip Pi's padding rows; add one band-colored row above and below the body.
 		let body = (lines.length > 2 ? lines.slice(1, -1) : lines).map(cleanUserMessageLine);
 		if (!padded) body = body.map((line) => line.replace(/^((?:\x1b\[[0-9;]*m)*)/, "$1  "));
 		body = body.map((line, index) => (index === 0 ? markUserPromptLine(line, true) : copySkipUserPad(line)));
 		const band = userMessageBandAnsi();
-		const rendered = body.map((line) => withUserBand(line, safeWidth, band));
+		const rendered = ["", ...body, ""].map((line) => withUserBand(line, safeWidth, band));
 		return storeMessageRenderCache(this, width, applyTerminalCopyZones(rendered));
 	};
 	proto[USER_MESSAGE_PATCH_FLAG] = true;
