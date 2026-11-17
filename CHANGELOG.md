@@ -3,6 +3,12 @@
 > [!IMPORTANT]
 > **1.0.69 — package rename (permanent).** Canonical npm name is now [`pi-claude-code-ui`](https://www.npmjs.com/package/pi-claude-code-ui). `pi-claude-style-tools` is legacy and will not receive further releases. Install with `pi install npm:pi-claude-code-ui` or `npm i pi-claude-code-ui`.
 
+## 1.0.108 — 2026-11-17
+
+### Fixed
+
+- **Settings now persist on Windows** (and any launch without `HOME` set). The settings path resolved to `~/.pi/settings.json` — pi's real settings file is `~/.pi/agent/settings.json` — and the write guard bailed out silently when `HOME` was unset, so commands like `/cc-theme terminal off` never survived a restart when pi was launched from cmd/PowerShell. The path is now built with `os.homedir()` (matching pi itself) and the guard is gone; write errors are logged instead of swallowed. A legacy `~/.pi/settings.json` is still read as a lowest-priority fallback, and `~` expansion in bash-edit paths and short paths also uses `os.homedir()`.
+
 ## 1.0.107 — 2026-10-30
 
 ### Fixed

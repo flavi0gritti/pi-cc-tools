@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { readFile as readFileAsync } from "node:fs/promises";
+import { homedir } from "node:os";
 import { basename, dirname, extname, relative, resolve } from "node:path";
 
 import type {
@@ -83,7 +84,7 @@ import {
 	type BashIntentMode,
 } from "./bash-intent";
 import { detectBashFileEdit, type BashFileEdit } from "./bash-file-edit";
-import { getUserSettingsPath } from "./settings-path";
+import { getLegacyUserSettingsPath, getUserSettingsPath } from "./settings-path";
 import {
 	blendForContrast,
 	mixRgb as mixThemeRgb,
@@ -230,8 +231,9 @@ function readSettings(): SettingsFile {
 	}
 	const cwdPath = `${process.cwd()}/.pi/settings.json`;
 	const homePath = getUserSettingsPath();
+	const legacyPath = getLegacyUserSettingsPath();
 	const merged: SettingsFile = {};
-	for (const path of [cwdPath, homePath]) {
+	for (const path of [legacyPath, cwdPath, homePath]) { // legacy lowest priority
 		try {
 			if (!path || !existsSync(path)) continue;
 			const raw = JSON.parse(readFileSync(path, "utf8"));
@@ -256,8 +258,6 @@ function bustSpinnerSettingsCache(): void {
 
 function writeSettingsKey(key: string, value: unknown): void {
 	_settingsCache = null; // invalidate cache on write
-	const home = process.env.HOME ?? "";
-	if (!home && !process.env.PI_CODING_AGENT_DIR) return;
 	const path = getUserSettingsPath();
 	const dir = dirname(path);
 	let settings: Record<string, unknown> = {};
@@ -272,7 +272,9 @@ function writeSettingsKey(key: string, value: unknown): void {
 	try {
 		mkdirSync(dir, { recursive: true });
 		writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
-	} catch { /* best effort */ }
+	} catch (error) {
+		console.error(`pi-claude-code-ui: failed to write settings to ${path}:`, error);
+	}
 }
 
 let toolBackgroundOverride: "default" | "transparent" | "outlines" | null = null;
@@ -4004,7 +4006,7 @@ function shortPath(cwd: string, filePath: string): string {
 	if (!filePath) return "";
 	const rel = relative(cwd, filePath);
 	if (!rel.startsWith("..") && !rel.startsWith("/")) return rel || ".";
-	const home = process.env.HOME ?? "";
+	const home = homedir();
 	return home ? filePath.replace(home, "~") : filePath;
 }
 
@@ -5139,9 +5141,8 @@ function themeChosenOnCommandLine(): boolean {
 
 /** Pi's saved `theme` setting (may be a "light/dark" pair), from pi's own settings file. */
 function readPiThemeSetting(): string | undefined {
-	const agentDir = process.env.PI_CODING_AGENT_DIR || `${process.env.HOME ?? ""}/.pi/agent`;
 	try {
-		const raw = JSON.parse(readFileSync(`${agentDir}/settings.json`, "utf8"));
+		const raw = JSON.parse(readFileSync(getUserSettingsPath(), "utf8"));
 		return typeof raw?.theme === "string" && raw.theme ? raw.theme : undefined;
 	} catch {
 		return undefined;
@@ -8102,8 +8103,8 @@ interface BashFileEditRecord {
 const MAX_BASH_SNAPSHOT_BYTES = 1_000_000;
 
 function resolveBashEditPath(cwd: string, edit: BashFileEdit, path: string): string {
-	const home = process.env.HOME ?? "";
-	const expand = (value: string) => (home && (value === "~" || value.startsWith("~/")) ? `${home}${value.slice(1)}` : value);
+	const home = homedir();
+	const expand = (value: string) => (value === "~" || value.startsWith("~/")) ? `${home}${value.slice(1)}` : value;
 	return resolve(edit.cd ? resolve(cwd, expand(edit.cd)) : cwd, expand(path));
 }
 
